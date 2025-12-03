@@ -3,7 +3,10 @@
 # Usage: source activate_env.sh
 
 cd /Users/muhammadsharjeel/Documents/ML_PROJECT
-source venv/bin/activate
+
+# This is a conda environment, not a standard venv
+# Use conda activate with full path
+conda activate /Users/muhammadsharjeel/Documents/ML_PROJECT/venv
 
 echo "✅ Virtual environment activated!"
 echo "📍 Project: ML_PROJECT"
