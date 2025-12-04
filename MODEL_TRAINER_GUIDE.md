@@ -997,5 +997,532 @@ cat logs/12_04_2025_*.log
 
 ---
 
-**Congratulations!** 🎉 You now understand the complete ML pipeline from data loading to model training!
+## 🎛️ Deep Dive: Hyperparameter Tuning
+
+### What is Hyperparameter Tuning?
+
+**Think of it like cooking:**
+- **Parameters** = Ingredients that change during cooking (how brown the bread gets)
+- **Hyperparameters** = Settings on your oven (temperature, time) that YOU set BEFORE cooking
+
+```
+┌────────────────────────────────────────────────────────────────────────┐
+│                    PARAMETERS vs HYPERPARAMETERS                       │
+├────────────────────────────────────────────────────────────────────────┤
+│                                                                        │
+│  PARAMETERS (Learned during training):                                 │
+│  ├── Weights in neural networks                                        │
+│  ├── Coefficients in linear regression                                 │
+│  ├── Split thresholds in decision trees                                │
+│  └── These are AUTOMATICALLY learned from data                         │
+│                                                                        │
+│  HYPERPARAMETERS (Set BEFORE training):                                │
+│  ├── Number of trees in a forest (n_estimators)                        │
+│  ├── Learning rate (how fast to learn)                                 │
+│  ├── Tree depth (how complex patterns can be)                          │
+│  └── These are CHOSEN by us (or by tuning algorithms)                  │
+│                                                                        │
+└────────────────────────────────────────────────────────────────────────┘
+```
+
+---
+
+### Why Do We Need Hyperparameter Tuning?
+
+**Problem:** Different hyperparameter values give VERY different results!
+
+```
+Example: Random Forest with different n_estimators:
+
+n_estimators = 8    → R² = 0.72  (too few trees, underfitting)
+n_estimators = 32   → R² = 0.81  (getting better)
+n_estimators = 64   → R² = 0.85  (good!)
+n_estimators = 128  → R² = 0.86  (slightly better)
+n_estimators = 256  → R² = 0.85  (no improvement, just slower)
+n_estimators = 1000 → R² = 0.85  (wasting time!)
+
+Best choice: n_estimators = 128 (best accuracy with reasonable speed)
+```
+
+**Without tuning:** You might pick n_estimators=8 and get 72% accuracy
+**With tuning:** You automatically find n_estimators=128 and get 86% accuracy!
+
+---
+
+### How GridSearchCV Works (Step by Step)
+
+**GridSearchCV = Grid Search + Cross Validation**
+
+#### Part 1: Grid Search
+
+**What is a "Grid"?**
+```
+Imagine you have 2 hyperparameters:
+- learning_rate: [0.1, 0.01, 0.001]
+- n_estimators: [8, 16, 32]
+
+Grid Search tries ALL combinations:
+
+                    learning_rate
+                 0.1    0.01   0.001
+              ┌──────┬──────┬──────┐
+         8    │ Try  │ Try  │ Try  │
+n_estimators  ├──────┼──────┼──────┤
+         16   │ Try  │ Try  │ Try  │
+              ├──────┼──────┼──────┤
+         32   │ Try  │ Try  │ Try  │
+              └──────┴──────┴──────┘
+
+Total combinations: 3 × 3 = 9 experiments!
+```
+
+**The "Grid" is all possible combinations:**
+```python
+# Grid Search will try these 9 combinations:
+(0.1, 8), (0.1, 16), (0.1, 32),
+(0.01, 8), (0.01, 16), (0.01, 32),
+(0.001, 8), (0.001, 16), (0.001, 32)
+```
+
+---
+
+#### Part 2: Cross Validation (CV)
+
+**Problem with simple train/test split:**
+```
+What if by chance, all "easy" examples went to training
+and all "hard" examples went to testing?
+
+Your model might look bad, but it's actually good!
+Or vice versa - model looks good but is actually bad!
+```
+
+**Solution: Cross Validation**
+
+```
+cv=3 means 3-Fold Cross Validation:
+
+Training Data (800 samples) split into 3 parts:
+┌─────────────────────────────────────────────────────────┐
+│  Part 1 (267)  │  Part 2 (267)  │  Part 3 (266)         │
+└─────────────────────────────────────────────────────────┘
+
+Fold 1: Train on [Part 2 + Part 3], Test on [Part 1]
+┌─────────────────────────────────────────────────────────┐
+│   🧪 TEST     │    📚 TRAIN    │    📚 TRAIN           │
+└─────────────────────────────────────────────────────────┘
+→ Score 1 = 0.84
+
+Fold 2: Train on [Part 1 + Part 3], Test on [Part 2]
+┌─────────────────────────────────────────────────────────┐
+│   📚 TRAIN    │    🧪 TEST     │    📚 TRAIN           │
+└─────────────────────────────────────────────────────────┘
+→ Score 2 = 0.86
+
+Fold 3: Train on [Part 1 + Part 2], Test on [Part 3]
+┌─────────────────────────────────────────────────────────┐
+│   📚 TRAIN    │    📚 TRAIN    │    🧪 TEST            │
+└─────────────────────────────────────────────────────────┘
+→ Score 3 = 0.85
+
+Final Score = Average(0.84, 0.86, 0.85) = 0.85
+```
+
+**Why is this better?**
+- Every data point is used for BOTH training and testing
+- More reliable score (average of 3 experiments)
+- Reduces luck/randomness in the split
+
+---
+
+#### Part 3: GridSearchCV Combined
+
+**For EACH combination of hyperparameters, do 3-fold CV:**
+
+```
+GridSearchCV Process:
+
+Combination 1: learning_rate=0.1, n_estimators=8
+├── Fold 1: Train → Test → Score = 0.72
+├── Fold 2: Train → Test → Score = 0.74
+├── Fold 3: Train → Test → Score = 0.73
+└── Average Score = 0.73
+
+Combination 2: learning_rate=0.1, n_estimators=16
+├── Fold 1: Train → Test → Score = 0.78
+├── Fold 2: Train → Test → Score = 0.80
+├── Fold 3: Train → Test → Score = 0.79
+└── Average Score = 0.79
+
+... (7 more combinations) ...
+
+Combination 9: learning_rate=0.001, n_estimators=32
+├── Fold 1: Train → Test → Score = 0.85
+├── Fold 2: Train → Test → Score = 0.87
+├── Fold 3: Train → Test → Score = 0.86
+└── Average Score = 0.86  ← BEST!
+
+Winner: learning_rate=0.001, n_estimators=32
+```
+
+**Total experiments:** 9 combinations × 3 folds = **27 model trainings!**
+
+---
+
+### The Code Explained
+
+```python
+# In utils.py - evaluate_models function
+
+# Step 1: Create GridSearchCV object
+gs = GridSearchCV(model, model_params, cv=3)
+```
+
+**What each parameter means:**
+| Parameter | Value | Meaning |
+|-----------|-------|---------|
+| `model` | `RandomForestRegressor()` | The model to tune |
+| `model_params` | `{'n_estimators': [8,16,32...]}` | Hyperparameters to try |
+| `cv` | `3` | Use 3-fold cross validation |
+
+---
+
+```python
+# Step 2: Run the grid search
+gs.fit(X_train, y_train)
+```
+
+**What happens inside:**
+```
+For each hyperparameter combination:
+    For each fold (1, 2, 3):
+        Train model on 2 parts
+        Test model on 1 part
+        Record score
+    Calculate average score
+Find combination with highest average score
+Store in gs.best_params_
+```
+
+---
+
+```python
+# Step 3: Get the best hyperparameters
+gs.best_params_
+# Returns: {'n_estimators': 64, 'learning_rate': 0.01}
+```
+
+---
+
+```python
+# Step 4: Apply best params to the model
+model.set_params(**gs.best_params_)
+```
+
+**What is `**` (double asterisk)?**
+```python
+# gs.best_params_ = {'n_estimators': 64, 'learning_rate': 0.01}
+
+# ** unpacks the dictionary into keyword arguments:
+model.set_params(**gs.best_params_)
+# Is the same as:
+model.set_params(n_estimators=64, learning_rate=0.01)
+```
+
+---
+
+```python
+# Step 5: Train with best params and get final score
+model.fit(X_train, y_train)
+y_test_pred = model.predict(X_test)
+test_model_score = r2_score(y_test, y_test_pred)
+```
+
+---
+
+### Hyperparameters for Each Model (In Our Project)
+
+#### 1. Decision Tree
+```python
+"Decision Tree": {
+    'criterion': ['squared_error', 'friedman_mse', 'absolute_error', 'poisson'],
+}
+```
+
+| Hyperparameter | What it does |
+|----------------|--------------|
+| `criterion` | How to measure the quality of a split |
+
+**Criterion options:**
+- `squared_error` - Minimize variance (default, most common)
+- `friedman_mse` - Improved version for gradient boosting
+- `absolute_error` - Minimize mean absolute error
+- `poisson` - For count data (rare)
+
+---
+
+#### 2. Random Forest
+```python
+"Random Forest": {
+    'n_estimators': [8, 16, 32, 64, 128, 256]
+}
+```
+
+| Hyperparameter | What it does |
+|----------------|--------------|
+| `n_estimators` | Number of trees in the forest |
+
+```
+n_estimators = 8:   🌲🌲🌲🌲🌲🌲🌲🌲 (8 trees vote)
+n_estimators = 256: 🌲🌲🌲...🌲🌲🌲 (256 trees vote)
+
+More trees = More stable predictions, but slower
+```
+
+---
+
+#### 3. Gradient Boosting
+```python
+"Gradient Boosting": {
+    'learning_rate': [.1, .01, .05, .001],
+    'subsample': [0.6, 0.7, 0.75, 0.8, 0.85, 0.9],
+    'n_estimators': [8, 16, 32, 64, 128, 256]
+}
+```
+
+| Hyperparameter | What it does |
+|----------------|--------------|
+| `learning_rate` | How much each tree contributes |
+| `subsample` | Fraction of data used per tree |
+| `n_estimators` | Number of boosting stages |
+
+**Learning Rate Explained:**
+```
+learning_rate = 0.1 (high):
+├── Each tree has BIG impact
+├── Learns fast but might overshoot
+└── Needs fewer trees
+
+learning_rate = 0.001 (low):
+├── Each tree has SMALL impact
+├── Learns slowly but precisely
+└── Needs more trees
+```
+
+**Subsample Explained:**
+```
+subsample = 1.0: Use 100% of data for each tree (no randomness)
+subsample = 0.8: Use 80% of data for each tree (some randomness)
+subsample = 0.6: Use 60% of data for each tree (more randomness)
+
+Lower subsample = More diversity = Less overfitting
+```
+
+---
+
+#### 4. Linear Regression
+```python
+"Linear Regression": {}
+```
+
+**No hyperparameters!** Linear regression is simple:
+- Just finds the best line through the data
+- No knobs to tune
+
+---
+
+#### 5. XGBoost
+```python
+"XGBRegressor": {
+    'learning_rate': [.1, .01, .05, .001],
+    'n_estimators': [8, 16, 32, 64, 128, 256]
+}
+```
+
+Same as Gradient Boosting - XGBoost is an optimized version.
+
+---
+
+#### 6. CatBoost
+```python
+"CatBoosting Regressor": {
+    'depth': [6, 8, 10],
+    'learning_rate': [0.01, 0.05, 0.1],
+    'iterations': [30, 50, 100]
+}
+```
+
+| Hyperparameter | What it does |
+|----------------|--------------|
+| `depth` | Maximum depth of trees |
+| `learning_rate` | Step size for updates |
+| `iterations` | Number of boosting rounds |
+
+**Depth Explained:**
+```
+depth = 2:
+        [Root]
+       /      \
+    [Node]  [Node]
+    
+Only 2 levels = Simple patterns
+
+depth = 10:
+        [Root]
+       /      \
+    [...]    [...]
+   /    \   /    \
+  ... (10 levels deep)
+  
+10 levels = Complex patterns (risk of overfitting)
+```
+
+---
+
+#### 7. AdaBoost
+```python
+"AdaBoost Regressor": {
+    'learning_rate': [.1, .01, 0.5, .001],
+    'n_estimators': [8, 16, 32, 64, 128, 256]
+}
+```
+
+**AdaBoost is special:**
+- Focuses on examples the previous trees got WRONG
+- Each tree tries to fix the mistakes of previous trees
+
+---
+
+### Computation Time
+
+**Why does tuning take so long?**
+
+```
+In our project:
+
+Random Forest:
+├── 6 values for n_estimators
+├── 3 folds
+└── Total: 6 × 3 = 18 trainings
+
+Gradient Boosting:
+├── 4 values for learning_rate
+├── 6 values for subsample  
+├── 6 values for n_estimators
+├── 3 folds
+└── Total: 4 × 6 × 6 × 3 = 432 trainings!
+
+CatBoost:
+├── 3 values for depth
+├── 3 values for learning_rate
+├── 3 values for iterations
+├── 3 folds
+└── Total: 3 × 3 × 3 × 3 = 81 trainings
+
+All models combined: ~600+ model trainings!
+That's why it takes ~30 seconds to run.
+```
+
+---
+
+### Tips for Better Hyperparameter Tuning
+
+**1. Start with fewer values:**
+```python
+# Instead of:
+'n_estimators': [8, 16, 32, 64, 128, 256, 512, 1024]
+
+# Start with:
+'n_estimators': [50, 100, 200]
+```
+
+**2. Use RandomizedSearchCV for many hyperparameters:**
+```python
+# GridSearchCV: Tries ALL combinations (slow but thorough)
+# RandomizedSearchCV: Tries RANDOM combinations (fast but might miss best)
+
+from sklearn.model_selection import RandomizedSearchCV
+rs = RandomizedSearchCV(model, params, n_iter=20, cv=3)
+# Only tries 20 random combinations instead of all
+```
+
+**3. Two-stage tuning:**
+```python
+# Stage 1: Coarse search (big steps)
+'learning_rate': [0.001, 0.01, 0.1, 1.0]
+# Winner: 0.01
+
+# Stage 2: Fine search (small steps around winner)
+'learning_rate': [0.005, 0.01, 0.02, 0.05]
+# Winner: 0.02
+```
+
+---
+
+### Visual Summary
+
+```
+┌────────────────────────────────────────────────────────────────────────────────┐
+│                     HYPERPARAMETER TUNING PROCESS                              │
+├────────────────────────────────────────────────────────────────────────────────┤
+│                                                                                │
+│  Step 1: Define the Grid                                                       │
+│  ┌──────────────────────────────────────────────────────────────────────────┐  │
+│  │  params = {                                                              │  │
+│  │      'n_estimators': [8, 16, 32, 64, 128, 256],                          │  │
+│  │      'learning_rate': [0.1, 0.01, 0.001]                                 │  │
+│  │  }                                                                       │  │
+│  │  Total combinations: 6 × 3 = 18                                          │  │
+│  └──────────────────────────────────────────────────────────────────────────┘  │
+│                               │                                                │
+│                               ▼                                                │
+│  Step 2: For each combination, do 3-fold CV                                    │
+│  ┌──────────────────────────────────────────────────────────────────────────┐  │
+│  │  Combination: n_estimators=64, learning_rate=0.01                        │  │
+│  │                                                                          │  │
+│  │  Fold 1: Score = 0.84                                                    │  │
+│  │  Fold 2: Score = 0.86                                                    │  │
+│  │  Fold 3: Score = 0.85                                                    │  │
+│  │  ─────────────────────                                                   │  │
+│  │  Average = 0.85                                                          │  │
+│  └──────────────────────────────────────────────────────────────────────────┘  │
+│                               │                                                │
+│                               ▼                                                │
+│  Step 3: Compare all combinations                                              │
+│  ┌──────────────────────────────────────────────────────────────────────────┐  │
+│  │  (8, 0.1)   → 0.72                                                       │  │
+│  │  (16, 0.1)  → 0.78                                                       │  │
+│  │  (32, 0.1)  → 0.82                                                       │  │
+│  │  (64, 0.01) → 0.86  ← BEST!                                              │  │
+│  │  ...                                                                     │  │
+│  └──────────────────────────────────────────────────────────────────────────┘  │
+│                               │                                                │
+│                               ▼                                                │
+│  Step 4: Return best parameters                                                │
+│  ┌──────────────────────────────────────────────────────────────────────────┐  │
+│  │  gs.best_params_ = {'n_estimators': 64, 'learning_rate': 0.01}           │  │
+│  │  gs.best_score_ = 0.86                                                   │  │
+│  └──────────────────────────────────────────────────────────────────────────┘  │
+│                                                                                │
+└────────────────────────────────────────────────────────────────────────────────┘
+```
+
+---
+
+### Key Takeaways
+
+| Term | Simple Explanation |
+|------|-------------------|
+| **Hyperparameter** | A setting you choose BEFORE training |
+| **Grid Search** | Try ALL combinations of hyperparameters |
+| **Cross Validation** | Split data multiple ways for reliable scores |
+| **GridSearchCV** | Grid Search + Cross Validation combined |
+| **cv=3** | Use 3 different train/test splits |
+| **best_params_** | The winning hyperparameter combination |
+| **Overfitting** | Model memorizes training data, fails on new data |
+| **Underfitting** | Model is too simple, misses patterns |
+
+---
+
+**Congratulations!** 🎉 You now understand the complete ML pipeline from data loading to model training, including hyperparameter tuning!
 

@@ -4,7 +4,8 @@
 
 ### Option 1: Use Activation Script (Easiest)
 ```bash
-source activate_env.sh
+source venv/bin/activate
+
 ```
 
 ### Option 2: Manual Activation
