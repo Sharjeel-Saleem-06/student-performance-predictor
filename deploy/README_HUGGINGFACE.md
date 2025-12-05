@@ -1,20 +1,85 @@
-## Deploy Free on Hugging Face Spaces (Docker)
+# Deploy Backend to Hugging Face Spaces
 
-This app can run on Hugging Face Spaces without a card using the provided `Dockerfile`.
+This guide explains how to deploy the ML backend API to Hugging Face Spaces (free, no credit card required).
 
-### Steps
-1) Create a new Space on Hugging Face:
-   - Type: **Docker**
-   - Visibility: **Public** (recommended for free tier)
-2) Push the repo contents (including `Dockerfile`, `app.py`, `requirements.txt`, and the `artifacts/` directory with `model.pkl` and `proprocessor.pkl`) to the Space:
-   - If using Git: add the Space as a remote and push `main`
-   - Or upload via the web UI
-3) Hugging Face will build and run the container automatically.
-   - The app listens on `$PORT` (default 7860) and uses `gunicorn app:app`.
-4) Once the build succeeds, click “Visit Space” to use the app.
+## Prerequisites
+- Hugging Face account (free): https://huggingface.co/join
 
-### Notes
-- The build installs system deps (`gcc`, `libgomp1`) for `xgboost/catboost`.
-- Keep `artifacts/` in the repo so the model loads at runtime.
-- If you retrain, commit updated artifacts before pushing.
+## Steps
 
+### 1. Create a New Space
+1. Go to https://huggingface.co/new-space
+2. Enter a name (e.g., `student-performance`)
+3. Select **Docker** as the SDK
+4. Choose **Public** visibility (required for free tier)
+5. Click **Create Space**
+
+### 2. Clone the Space Repository
+```bash
+git clone https://huggingface.co/spaces/YOUR_USERNAME/student-performance
+cd student-performance
+```
+
+### 3. Copy Backend Files
+Copy these files/folders from your project:
+- `app.py` (API-only Flask app)
+- `Dockerfile`
+- `requirements.txt`
+- `src/` folder
+- `artifacts/` folder (contains model.pkl and proprocessor.pkl)
+
+### 4. Push to Hugging Face
+```bash
+git add .
+git commit -m "Initial deployment"
+git push
+```
+
+### 5. Wait for Build
+- Hugging Face will automatically build and deploy
+- Watch the "Building" status in your Space
+- Once green, your API is live!
+
+## API Endpoints
+
+Your Space URL will be: `https://YOUR_USERNAME-student-performance.hf.space`
+
+### Health Check
+```
+GET /
+```
+Returns API status and available endpoints.
+
+### Prediction
+```
+POST /api/predict
+Content-Type: application/json
+
+{
+    "gender": "male",
+    "ethnicity": "group B",
+    "parental_level_of_education": "bachelor's degree",
+    "lunch": "standard",
+    "test_preparation_course": "completed",
+    "reading_score": 72,
+    "writing_score": 74
+}
+```
+
+Response:
+```json
+{
+    "success": true,
+    "prediction": 73.5,
+    "input": { ... }
+}
+```
+
+## After Deployment
+
+Update the frontend (`frontend/predict.html`) with your Space URL:
+```javascript
+const API_URL = 'https://YOUR_USERNAME-student-performance.hf.space';
+```
+
+Then deploy the frontend to Netlify!
